@@ -1,0 +1,911 @@
+NEUROBRIDGE EDGE
+v0.8 — P0 전체 시스템 상세 설계 / 설계 완료 심사본
+==========================================================================
+작성 기준 : 2026-11-11 (Asia/Seoul)
+문서 상태 : DESIGN REVIEW / BLOCKED — 설계 완료 미선언
+실험 상태 : NOT TESTED. 보유 장비 실물 확인·코드 구현·구매·테스트 미실시.
+문서 성격 : 구현을 위한 실행 명세 및 설계 완료 심사. 구현 지시 아님.
+기준선     : 사용자 제공 v0.5 PDF → v0.6 결정 → v0.7 TXT → D01=A / D02=B
+
+[사용하는 판정 표시]
+[확정]      사용자가 목표, 선택 또는 실행원칙으로 승인한 내용. 실증 아님.
+[기술 사실]  공개 기술 명세나 기본 원리에 대한 설명. 현재 실기 성공 보증 아님.
+[설계안]    구현 절차·형식·규칙에 관한 제안. 승인·시험에 따라 변경 가능.
+[가설]      아직 결과가 없어 실제 가능성/성능이 불확실한 기대.
+[미검증]    실제 자료·시험 증거가 없는 사항.
+[잠정 승인]  D01=A에 의해 후보 기준으로 수용됐으나 본 시험 전 동결 필요.
+[미승인]    아직 사용자가 확정하지 않은 추가 수치·범위·변경안.
+[BLOCK]     해결되기 전 설계 완료를 선언해서는 안 되는 결정/충돌.
+
+작업 승인 경계: P0 설계 승인 ≠ P1 구현 착수 승인 ≠ 장비 구매 승인.
+각 단계 수행과 다음 단계 이동은 해당 단계에 대한 사용자 명시 승인이 필요하다.
+
+==========================================================================
+00. 문서 변경 이력과 이번 심사 결과
+==========================================================================
+v0.3  전체 시스템, 단계 P0~P8 및 실험 검증 개요.
+v0.4  1A 좌/우 운동상상, 2B MindWave→Orange Pi 직접 수신,
+      3B 정량 성능값 별도 승인, 4B P1 확인 후 구매 결정.
+v0.5  2회 검토 PDF. 데이터 연계, 세션 분할, 오류·시계 동기 보강.
+v0.6  30만 원 상한 폐기 / BCI 구입비 별도 / 추가 지출 10만 원,
+      12월 둘째 주 조기 시연 희망, 주 5h 이하, Fp1 적합 과제 우선,
+      D3=A 실패 시 원인·재시험 계획 우선, D5=B 구설계 보류.
+      Q1=A 집중·중립 우선 및 시각상상 비교, Q2=B 실제 EEG 기반 3D 제어.
+v0.7  18개 요구사항 추적, ThinkGear 수신·원본 보존, Edge-PC 통신,
+      전처리/모델/NPU/렌더러 계약, 정량 후보 T-01~T-10,
+      8조건 심사 및 BLOCK-01~02 기록. 상태 BLOCKED.
+v0.8  [이번 문서]
+      A. 사용자 D01=A: v0.7 §12 T-01~T-10 후보를 [잠정 승인]으로 변경.
+      B. 사용자 D02=B: 12월 조기 시연과 2027-01-31 시연 모두
+         독립적인 사용자 의도 판별을 필수 성공요건으로 변경.
+      C. 단순 EEG→NPU→3D 링크(LEVEL 1)는 목표 PASS로 사용 금지.
+      D. P3에서 MI 조기 타당성 프로브를 유지하면서 FOCUS 우선순위도 유지.
+      E. 각 시험의 시행 단위, 거부/오명령, 온라인 평가, 실패주입 규정 보강.
+      F. T-10의 미정 통과값 및 조기 일정·검증 범위 충돌을 새 심사 BLOCK으로 등록.
+
+[이번 심사의 결과]
+- 핵심 요구사항을 임의 변경하지 않았다.
+- 구현 경로·모듈 계약·시험 절차를 기술적으로 상세화했다.
+- 정량값은 잠정 승인 상태이며 최종 독립 온라인 판정의 일부가 비어 있다.
+- 따라서 '설계 완료'는 선언하지 않는다. P0 승인도 받지 않았다.
+
+==========================================================================
+01. 확정 요구사항 추적표 — 구현 책임 / 검증 게이트
+==========================================================================
+ID   [확정] 요구사항                         구현 위치             검증 위치
+R01  자유 상상 사물·동작·장면의 실시간 시각화 비전  M11 확장 경계/장기 연구   P7/P8 한계 명시
+R02  손에 국한되지 않는 렌더러 구조             M09/M11              P7 교체 시험
+R03  MindWave Mobile 2 기종 유지               M01/M02              P2/P3
+R04  DX-M1+Orange Pi 5 Plus 유지              M07/M08              P1/P5
+R05  Orange Pi 직접 Bluetooth EEG 수신        M01~M06              P2/P6
+R06  노트북·PC·NPU 키트 보유, 학원 자원 보조       개발/Edge 분할          P1 자원 조사
+R07  BCI 구매비 별도 / 그 외 추가 비용 ≤10만 원   구매 장부              모든 구매 전
+R08  2026-12-07~13 조기 시연 희망               P7 일정              G7
+R09  2027-01-31 목표일 유지                   P8 일정              G8
+R10  실제 EEG를 실제 DX-M1 NPU가 분석          M01→M08→M11        P5/P6/P7/P8
+R11  모델 경량화·양자화 필수                    M16~M18              P5
+R12  패킷 형식/체크섬 등 결정적 검사 CPU 수행     M02                  P2
+R13  EEG 원본 불변 보존 및 가공·추정값 분리       M03                  P2/P8
+R14  실험·단계 후 사용자 승인 전 다음 단계 금지   G0~G8 변경관리         각 게이트
+R15  Fp1 집중 vs 중립 우선, 시각상상 vs 중립 비교 M13/M15/M16          P3
+R16  왼/오른손 운동상상 가능성 초기 확인 필수     P3-MI 프로브          P3
+R17  실제 EEG 분류로 손/다른 3D 객체 동작       M09/M11              P7/P8
+R18  주 5시간 이하 작업 가능                    일정/실적 장부         매 게이트
+R19  D01=A: T-01~T-10 초기 정량 기준 잠정 수용 §12/T-01~T-10        각 시험 전 동결
+R20  D02=B: 12월과 1월 모두 독립 의도 판별 필수 §02/P7/P8            G7/G8
+
+[변경 불가의 의미]
+최종 비전(R01)은 기술 검증으로 실현성을 판단할 연구 목표이다.
+선정 장비/예산/날짜/운영 원칙을 임의 변경하지 않는다.
+단, 미검증 기능의 성공을 보장하거나 실현했다고 주장하지 않는다.
+
+==========================================================================
+02. 프로토타입의 의미, 성공 주장과 D02=B 경계
+==========================================================================
+[확정] 2026년 12월 둘째 주와 2027년 1월 31일의 '목표 성공'에는
+실제 사용자 EEG와 DX-M1 INT8 추론, 3D 화면 반응, 독립적인 사용자
+의도 판별 증거가 모두 있어야 한다.
+
+LEVEL-0: 합성/공개 EEG 재생 → NPU → 3D. 시스템 통신·연산 시연.
+LEVEL-1: 실제 MindWave EEG → NPU → 3D. 의도 판별 근거 미확립.
+LEVEL-2: 사전 정한 특정 의도적 과제(집중/중립, 시각 심상/중립,
+         좌/우 운동상상 등)를 독립 세션에서 평가해, 우연 수준 및
+         실험 교란과 비교한 근거를 확보하고 실시간 제어에 연결.
+LEVEL-3: 자유롭게 상상한 구체적인 장면·형태·운동 궤적을 직접 복원.
+
+[이번 결정에 따른 판정]
+- 12월 성공 요구 = LEVEL-2 + 실제 DX-M1 INT8 + 화면 제어.
+- 1월 성공 요구 = LEVEL-2 + 실제 DX-M1 INT8 + 화면 제어,
+  재현성/안정성/성능의 추가 독립 평가.
+- LEVEL-0/1은 부분 기술 성취일 뿐 두 목표일의 합격이 아니다.
+- LEVEL-2의 '의도'는 미리 지정된 과제 상태의 판별을 뜻하며,
+  장면 내용 직접 복원이나 손 움직임 궤적 복원이 아니다.
+- LEVEL-2라 하더라도 Fp1 단일 채널의 순수 신경학적 기원은
+  안구·얼굴 근육 신호의 완전한 분리 없이 확정할 수 없다.
+- 집중/중립 분류 성공이 곧 시각 심상이나 왼/오른손 운동상상
+  성공이라고 평가되지는 않는다. 각각 독립 성적을 기록한다.
+- 최종 연구 목표 LEVEL-3은 삭제하거나 LEVEL-2로 낮추지 않는다.
+
+[엄격 판정 요구]
+- 각 목표일의 평가 데이터는 개발·튜닝 데이터와 분리한다.
+- 동일한 EEG 실측 데이터가 NPU에 입력돼야 하고 NPU의 결과가 실제
+  렌더 사건으로 연결된 ID 계보를 보존해야 한다.
+- 눈 깜박임/시선 전환만으로 유발되는 분류는 의도적 인지 과제의
+  독립 판별 성취로 무조건 승격하지 않는다.
+- 온라인 실험이 실패했으면 오프라인만 높은 수치로 목표 PASS 불가.
+
+==========================================================================
+03. 아키텍처와 물리 장비 인터페이스
+==========================================================================
+[설계안 / 선택된 Edge 직접 수신 구조]
+
+     사용자(Fp1 EEG)
+           |
+      MindWave Mobile 2  (별도 구매 예정; 배터리)
+           | Bluetooth Classic SPP / RFCOMM
+           v
+     Orange Pi 5 Plus (Linux, 별도 USB BT 어댑터 필요할 수 있음)
+     +-----------------------------------------------------+
+     | CPU: 수신 → ThinkGear 검사 → 원본 불변 저장          |
+     | CPU: 품질·인과 전처리 → 윈도우/특징 구성            |
+     | DX-M1: 학습된 INT8 EEG 모델 실제 추론              |
+     | CPU: REJECT/INVALID/명령 매핑/이벤트 송신          |
+     +-----------------------------------------------------+
+                  | PCIe/M.2: Orange Pi ↔ DX-M1
+                  | Ethernet + TCP: Edge → PC 추론 이벤트
+                  v
+     노트북/PC: 시험 큐 표시·로그·Godot 3D 렌더링
+
+별도 빌드:
+   노트북/PC(또는 승인된 Azure ML)에서 학습 → FP32/ONNX
+   → SDK 호환 x86_64 Linux DX-COM INT8 보정/컴파일
+   → .dxnn → Orange Pi DX-RT → 실제 DX-M1
+
+[실기 확인 전 UNKNOWN]
+H01 Edge 기판과 DX-M1의 실제 장착 상태 및 사용 권한.
+H02 OS, kernel, aarch64, PCIe 인식, NPU 펌웨어/드라이버/SDK.
+H03 공식 전원 조건 만족 여부와 저장장치 여유/기록 내구성.
+H04 USB Bluetooth Classic 어댑터 보유/드라이버/프로파일 지원.
+H05 MindWave 실제 Linux 페어링 및 SPP 원시값 수신.
+H06 Ethernet 포트/공유기/케이블/PC 방화벽/PC GPU.
+H07 DX-COM용 x86_64 Linux 빌드 호스트 확보 방법.
+H08 학원 키트와 Azure 자원의 이용·변경·업로드 허용 범위.
+
+우회안(미승인): PC에서 MindWave를 받아 Edge로 중계.
+이는 이전 사용자가 고른 2B를 변경하므로 사용자 승인 전 적용 불가.
+
+==========================================================================
+04. 모듈과 실행 프로세스 계약
+==========================================================================
+Orange Pi CPU / Linux 서비스
+M01 headset_link       BlueZ 어댑터 관리, 페어링, RFCOMM 수신, 재연결
+M02 thinkgear_parser   프레임/체크섬/데이터 행 파서, 유효성 판정
+M03 raw_recorder       원본 수신 바이트·EEG·오류·메타데이터 append-only 기록
+M04 quality_gate       PoorSignal·결손·센서 오류, 규칙 기반 QC
+M05 causal_filter      인과 SOS 필터 및 연결 구간별 필터 상태 유지
+M06 feature_window     시간 윈도우·특징·고정 정규화·tensor 구성
+M07 dxrt_adapter       .dxnn load, ABI·shape·dtype·device 상태 확인
+M08 classifier         실제 DX-M1 상의 INT8 분류 추론
+M09 decision_mapper    VALID/REJECT/INVALID → IntentEvent/STOP
+M10 edge_tcp_service   길이 프레임, ACK, heartbeat, time sync, 오류
+
+PC 프로세스
+M11 scene_renderer     Godot 4.x 3D 객체 Scene API, 안전 정지
+M12 event_receiver     TCP 수신·중복/시계/TTL/스키마 검사
+M13 cue_controller     조건 균형·무작위 과제 지시·실제 frame 제시 시각
+M14 event_logger       과제↔샘플↔윈도우↔예측↔렌더 결과 연결
+M15 evaluator          시행/세션별 수치, 교란 통제, 순열·신뢰구간
+
+개발/빌드 도구 (운영 시 Edge에 불필요)
+M16 train_pipeline     데이터 분할, 특징/모델 후보, FP32 기준선 학습
+M17 model_compiler     ONNX export, 비이미지 DataLoader INT8 보정, DX-COM
+M18 artifact_manifest  모델/데이터/버전/전처리/파라미터/해시 고정
+
+[프로세스 간 계약]
+- M01-M03은 원본을 우선 보존, M06-M09는 추론만 수행.
+- 저장 실패가 발생하면 새로운 유효 이동 명령을 내리지 않는다.
+- 모델 점수는 보정 여부 확인 전 경험적 확률·뇌 해독 확신도가 아님.
+- M11은 EEG를 직접 해석하지 않으며 M09의 승인된 enum만 해석.
+- M13의 지시 표시와 M01의 실측은 별개 단조 시계이므로 정합 과정 필수.
+
+==========================================================================
+05. ThinkGear SPP 데이터 수집 상세 사양
+==========================================================================
+[기술 사실 / 공식 통신 규격]
+PACKET = 0xAA 0xAA | PLENGTH(1 byte; 0..169) |
+         PAYLOAD(PLENGTH bytes) | CHECKSUM(1 byte)
+CHECKSUM = (~(sum(PAYLOAD) & 0xff)) & 0xff
+DataRow = (0x55 EXCODE)* | CODE | [VLENGTH if CODE>=0x80] | VALUE
+- CODE 0x80: RAW 값 길이 2, 16bit signed big-endian.
+- CODE 0x02: PoorSignal 값(완전한 무잡음 보증 아님).
+- CODE 0x04/0x05: Attention/Meditation 제조사 파생 지표.
+- 제품 측정 사양 12bit와 전송 컨테이너 16bit는 서로 다른 개념.
+
+[수신 상태 기계]
+DISCONNECTED → DISCOVER → PAIR → CONNECT → STREAMING
+→ DEGRADED(손실 의심) → RECONNECTING → STREAMING/FAILED.
+프레임 파서 상태:
+SCAN_SYNC1 → SCAN_SYNC2 → READ_PLENGTH → READ_PAYLOAD
+→ READ_CHECKSUM → PARSE_DATAROW → SCAN_SYNC1.
+
+[필수 단위시험 벡터]
+V01 정상 프레임/정상 RAW 양수·음수·0·경계값.
+V02 stream chunk가 RAW 2바이트 중간에서 분할됨.
+V03 여러 프레임이 한 번에 붙음.
+V04 체크섬 틀림·페이로드 길이 초과·미완성 프레임.
+V05 미지 DataRow/EXCODE가 존재해도 프레임 안전 처리.
+V06 노이즈 바이트 사이 동기 재획득.
+V07 `0xAA 0xAA`가 페이로드에 포함됨.
+V08 임의 reconnect 후 샘플·프레임 관계가 섞이지 않음.
+V09 잘못된 길이·형식에서 인덱스 범위 초과가 발생하지 않음.
+V10 저장 실패 시 실시간 분류/이동 명령이 차단됨.
+
+[수신 시간과 연속성]
+transport_chunk에 `edge_mono_ns`, `edge_wall_utc`, `offset`, `len` 기록.
+seq는 PC/Orange Pi가 부여한 수신 순번이지 MindWave가 제공한
+뇌 측정의 전역 샘플 순번이 아니다. 샘플 누락 개수 모르면 null 기록.
+재연결·비정상 긴 정지·오버런은 새로운 `segment_id`.
+segment 경계를 가로지르는 EEG 윈도우 금지.
+
+==========================================================================
+06. 저장 형식, 원본 불변성, 데이터 계보 및 복구
+==========================================================================
+[설계안: Orange Pi 최초 저장]
+  data/raw_transport/<session>/partNNN.bin         수신 바이트
+  data/raw_transport/<session>/partNNN.index.jsonl 바이트 오프셋/수신 시각
+  data/raw_eeg/<session>/partNNN.i16le              파싱된 signed EEG
+  data/raw_eeg/<session>/partNNN.index.jsonl       원본 패킷 참조
+  data/annotations/<session>/trials.jsonl          지시 과제·시간
+  data/processed/<session>/...                      필터/특징
+  data/predictions/<session>/results.jsonl         추론 점수/상태
+  data/commands/<session>/intent.jsonl             추론→행동
+  data/renders/<session>/render.jsonl               실제 화면 동작
+  data/reconstructed/<session>/...                  추정값(선택, measured 아님)
+  manifests/session.json / manifests/model.json
+
+[필수 ID]
+session_id, boot_id, stream_id, segment_id, chunk_seq, packet_offset,
+sample_index, trial_id, cue_id, window_id, prediction_id, intent_id,
+render_id, model_id, model_sha256, preprocess_sha256.
+구간은 [sample_start, sample_stop)로 기록; stop은 포함하지 않는다.
+각 파생 결과는 원본 segment와 근거 sample range를 역추적 가능해야 함.
+
+[기록·무결성]
+- 수신 바이트는 parsing 이전에 바이너리 원본 스트림에 반영한다.
+- 활성 파일은 `.partial`로 쓰고 정상 종료시 flush/fsync 후 닫고 rename.
+- 세션별 SHA-256, size, close_state, 오류/재부팅 정보를 기록.
+- 파일 인덱스는 실제 오프셋에 대응하는 append-only JSONL.
+- raw_eeg는 파싱 성공 샘플만 저장; 오류 패킷은 raw_transport에 남김.
+- 수신 완료, 메모리 큐 적재, 파일 write, fsync 완료를 구분해 기록.
+- 기기가 보내지 않은 샘플을 AI가 메꾼 경우 별도 reconstructed로만 저장.
+- 저장 큐는 유한 크기; 상한 초과 시 조용히 원본 폐기하지 않고
+  RECORDING_FAILURE 선언 + 추론 명령 정지.
+- 장애 뒤 partial 파일은 회수본으로 표시, 과거 바이트를 임의 수정 금지.
+- PC 백업 시 양쪽 SHA-256 일치 확인. USB/네트워크 백업은 별도 경로.
+- 외부 클라우드에 원본 업로드하려면 사용자 별도 승인.
+
+[미검증]
+저장장치 내구성, 실제 안전 fsync 주기, 디스크 잔여 공간,
+실시간 장시간 기록의 실패율. P2에서 검증 후 수치를 동결한다.
+
+==========================================================================
+07. Fp1 EEG 전처리 및 모델 입력 경계
+==========================================================================
+[설계안: 모델 기준값은 아직 후보]
+- raw_sample_rate: 사양상 512Hz, P2에서 실측 검증.
+- window_s=2.0(1024 samples), hop_s=0.25(128 samples).
+- PoorSignal / segment integrity / finite / 입력 범위 gate.
+- 인과적 SOS IIR 대역 통과 후보, 주파수·계수는 개발 EEG로 결정.
+- 50Hz 노치의 유용성은 실제 노이즈 스펙트럼 비교 후 결정.
+- 필터 상태는 segment 내 연속 유지. 새 segment에서 초기화/warm-up.
+- train/validation/online 동일 파이프라인(미래 샘플 사용 금지).
+- 학습 분할에서 계산한 norm_mean/std만 온라인에 적용.
+- 특징 파라미터·epsilon·시퀀스·필터 coefficient는 manifest에 기록.
+
+[1차 12-feature 후보 — 채택 미확정]
+5개 : theta/alpha/low beta/high beta/전체 유효 대역 log power.
+4개 : mean, standard deviation, peak-to-peak, line length.
+3개 : zero-crossing rate, Hjorth mobility, spectral entropy.
+계산 정의·주파수 경계·eps·정규화는 개발 단계에서 구체 값과
+수학적 시험 벡터로 고정해야 함. 이름만으로 같은 feature 구현 보장 안 됨.
+
+[1차 NPU 후보]
+input_shape=(1,12) / float32 ABI 입력 후보
+Dense(12→16) + ReLU → Dense(16→Nclass).
+[미검증] 실제 DX-COM에서 이 텐서 형상과 Gemm 연산이 지원되는지.
+대안 shape=(1,12,1,1) Conv1x1 후보는 실기 컴파일 이후 채택.
+NPU 내부 양자화(INT8)와 DX-RT 호스트 입력 dtype은 동일하다고 가정 금지.
+
+[품질 AI / EEG 복원 AI]
+현재 핵심 경로의 필수 기능이 아님. CPU 규칙 기반 품질 검사 우선.
+별도 연구로 제안은 가능하나 원본 보존과 필수 NPU EEG 분류를
+대체하는 근거로 사용하지 않는다.
+
+==========================================================================
+08. 실험 지시, EEG 시간 정합과 라벨 의미
+==========================================================================
+[과제군]
+FOCUS   : 정신 산술 등 집중 과제 vs 중립(첫 우선 시험).
+VISUAL  : 지정된 사물/장면 심상 vs 중립(FOCUS와 비교).
+MI      : LEFT_MI vs RIGHT_MI 별도 조기 필수 타당성 프로브.
+CONTROL : 눈 깜박임, 고의적 시선 전환, 얼굴근육 동작, 지시만/무의도.
+
+[과제 설계]
+- 과제 지시는 중앙 고정점, 동일한 자극양식·시각 복잡도 유지.
+- 과제 순서를 block 단위 균형·무작위화하여 편향을 줄임.
+- 화면에 '왼쪽' 글자와 왼쪽 화살표를 연동하지 않도록 설계.
+- 사용자는 실제 손 움직임을 삼가며, 눈/얼굴 움직임은 통제군으로 기록.
+- 시각상상 과제를 수행했다는 완전한 내부 정답은 EEG만으로 알 수 없음.
+
+[TRIAL 데이터 계약]
+TRIAL_CUE: trial_id, block_id, task_code, pc_cue_requested_ns,
+           pc_actual_display_ns, display_frame_id, duration_ms.
+TRIAL_ACK: trial_id, edge_receive_ns, session_id, sync_epoch.
+과제 구간 시작/끝을 PC 화면에 표시한 실제 타임스탬프로 정의하고,
+경계의 불확실 구간은 지정된 guard interval로 제외한다.
+
+[두 장치 시계]
+PC/Edge 각각 monotonic clock; wall-time는 사람이 보는 로그만.
+SYNC_REQ: t1(PC send) → t2(Edge receive), t3(Edge send)
+        → t4(PC receive).
+왕복 지연으로 오프셋/불확실성 추정 후 clock_sync_status 기록.
+동기 상한을 알 수 없으면 과제 라벨 붙이기와 신선도 판정을 중단한다.
+PC cue 표시→PC 렌더 반응은 같은 PC 시계로 계측할 수 있지만,
+사용자 뇌 안에서 생각이 실제 발생한 순간→화면 반응 시간과 다르다.
+
+[시행 정보 보존]
+trial_id와 sample range/window ID를 직접 연결해 데이터 누출 방지.
+서로 겹치는 윈도우 수를 독립 시행 수로 세지 않음.
+label은 실험 지시 상태이며 뇌 안의 상상 내용에 대한 절대 정답 아님.
+
+==========================================================================
+09. AI 학습/검증/독립 최종 시험 프로토콜
+==========================================================================
+[분리 규칙]
+- 사람이 한 과제를 수행하는 trial을 원자적 실험 단위로 정의.
+- training / validation / final test는 시행·Run·날짜/세션 기준 분리.
+- P3 탐색 결과를 보고 과제·특징·모델을 선택했으면 해당 데이터는
+  후속 최종 독립 평가의 새 테스트 데이터로 재사용 금지.
+- 양자화 calibration도 training split만 사용.
+- 필터/정규화/score 임계값/시간 평활/거부 기준을 validation 이후 동결.
+- P7과 P8 평가 시에는 학습에 쓰지 않은 별도 새 세션 사용.
+  P7 시험 결과를 보고 모델을 수정하면 P8에서 새 세션 필요.
+
+[선정과제 온라인 평가]
+- 온라인 trial 1개는 독립 과제 지시 + 정해진 수행구간 + 결과를 갖는다.
+- 정해진 구간 내 valid prediction → 최종 액션을 고정된 집계 규칙으로
+  trial-level 명령으로 환산. 다수결/최초 판정/보류 규칙은 시험 전 동결.
+- P3/P4 Balanced Accuracy는 시행 단위 confusion matrix에서 산출.
+- coverage = 비거부 시행 / 전체 평가 시행.
+- 전체 시행 기준 명령 정답률과 coverage 조건부 정확도를 둘 다 제시.
+- 중립 상태 오명령률은 신호가 없거나 REST인 구간에서 실제 MOVE 발생
+  횟수 / 시간(분). 움직임 총 유지시간도 함께 기록.
+- 클래스별 재현율과 FOCUS-VISUAL-MI 각 과제 성능을 별도 보고.
+- 순열 검정은 시행/블록 단위 무작위화 제약을 유지하며 수행.
+- confidence interval은 시행/세션 구조를 반영해 추정.
+- 세션 수가 2개인 파일럿의 '재현성'을 모집단 일반화의 증거로 과장 금지.
+
+[교란 통제]
+- 실제 손 움직임, 눈/안구·얼굴 근육, 과제 단서만 있는 시행을 구분.
+- 모델이 CONTROL 조건에서 높은 점수를 내는지 오명령률 보고.
+- Fp1 한 채널만으로 EOG/EMG와 뇌 신호의 완전한 기원 분리는 불가.
+- 근거가 부족하면 D3=A 적용: 원인 분석·재시험 승인 후 P4 진행 보류.
+
+[독립 의도 판별의 문서상 정의]
+사용자가 지시된 인지 과제를 선택해 수행한 시험에서,
+새 세션 EEG 기반 분류가 사전 기준과 대조 조건을 충족하고,
+그 분류 결과가 실제 NPU에서 처리되어 화면에 사용된 사건이 확인됨.
+이것은 마음속 장면을 직접 읽었다는 주장을 포함하지 않는다.
+
+==========================================================================
+10. DX-M1 컴파일, 경량화·양자화 및 실행 계약
+==========================================================================
+[기술 사실: 최신 공식 문서 검토]
+- DEEPX DX-COM v2.5.0이 생성한 .dxnn v9는 DX-RT v3.5.0+ 필요.
+- 공식 DX-AllSuite v2.5.0 릴리스의 런타임 모듈 호환 조합을 확인한다.
+- 실제 보유 Orange Pi 이미지와 맞지 않으면 최우선으로 현재 설치
+  버전을 기록하고 지원되는 통합 조합을 검증한다.
+- 소형 EEG 모델의 미지원 연산/정적 입력/양자화 정확도는 미검증.
+
+[개발/배포 절차]
+1) 학습용 FP32 기준 모델·데이터 분할·전처리 설정 해시 고정.
+2) PyTorch→ONNX 정적 shape export; onnx.checker 수행.
+3) 동일 입력으로 FP32 PyTorch↔ONNX Runtime parity.
+4) 학습 분할만으로 non-image PyTorch DataLoader calibration 작성.
+5) DX-COM 지원 연산·tensor shape·SDK 요구 버전 검토.
+6) INT8 컴파일 .dxnn 산출 및 컴파일 요약/파티셔닝 기록.
+7) Orange Pi DX-RT에서 모델 load, 실제 DX-M1 infer, profiler 확보.
+8) CPU FP32 ↔ NPU INT8 같은 독립 validation 입력으로 정확도 비교.
+9) 연산 지연을 input preprocessing / NPU core / host overhead /
+   network / renderer로 나눠 기록.
+
+[모델 매니페스트 필수 필드]
+model_id, model_sha256, training_dataset_hash, calibration_hash,
+architecture, input_names, input_shapes, input_dtypes, feature_order,
+class_order, preprocessing_hash, norm_stats, output_dtypes,
+onnx_sha256, dxnn_sha256, sdk_runtime_versions, firmware_version,
+compiled_op_report, evaluation_protocol_hash.
+
+[성능 요구 충족 조건]
+- 실제 사용자 EEG의 특징 또는 구간이 모델 입력이어야 한다.
+- `.dxnn`이 로드됐다는 것만으로는 실제 NPU 연산 증거가 아님;
+  device profiler·실행로그·입출력 parity를 보존한다.
+- CPU만 돌아간 모델은 NPU 필수 요구 FAIL.
+- eSense 지표가 3D 움직임을 결정하고 NPU는 더미만 실행했다면 FAIL.
+- 정확도 보존과 속도 우위는 서로 별도 지표; 우위는 실측 시에만 주장.
+
+==========================================================================
+11. Edge↔PC TCP 통신 및 상태 기계
+==========================================================================
+[네트워크]
+- 동일 LAN/유선 Ethernet 우선, TCP 단일 연결.
+- Frame = 4-byte uint32 big-endian length + UTF-8 JSON.
+- maximum JSON bytes = 16,384. schema_version="1.0".
+- 서버/클라이언트 역할: Edge 서버, PC 클라이언트 [설계안].
+- session_id / boot_id / sync_epoch / connection_epoch 필수.
+- 임의 원본 EEG 전량은 온라인 명령 프레임에 포함시키지 않음.
+
+[메시지 타입]
+HELLO, HELLO_ACK, SYNC_REQ, SYNC_RESP, TRIAL_CUE,
+TRIAL_ACK, HEARTBEAT, PREDICTION, INTENT, RENDER_ACK, ERROR.
+
+[INTENT 스키마 필수 키]
+schema_version, type, session_id, boot_id, stream_id, segment_id,
+trial_id, window_id, prediction_id, intent_id, model_id,
+model_sha256, input_sample_range, decision_status, action,
+score, source_window_end_edge_ns, edge_created_mono_ns,
+error_code, command_generation_policy_version.
+
+[입력 검사]
+- 길이 초과, 비정상 JSON, 필수 필드 누락, 타입 불일치 → ERROR_SCHEMA.
+- session/boot/epoch 불일치 또는 중복 intent_id → 적용 거부.
+- Edge가 보낸 score는 float finite, 지원 클래스/액션 enum만 허용.
+- 모델 manifest의 클래스 순서와 수신 클래스가 불일치하면 거부.
+- 다른 모델·구간의 예측은 해당 실험 trial에 결합하지 않음.
+- 링크가 멈추거나 clock uncertainty를 알 수 없으면 STOP.
+
+[Decision 상태]
+VALID    = 입력·모델·추론·출력 기준 통과.
+REJECT   = 품질/점수/거부 정책상 판단 유보.
+INVALID  = 데이터/시계/하드웨어/통신 오류.
+CLASS_REST = 학습·검증한 REST 클래스만 사용.
+STOP       = 안전 제어를 위한 물리적/렌더 행동(뇌 상태 아님).
+
+[장애·복구]
+BT disconnected → STOP; raw append 실패 → STOP + RECORDING_FAILURE.
+잘못된 EEG 구간 → REJECT/INVALID; DX-M1 장애 → INVALID+STOP.
+TCP 끊김·heartbeat 만료·오래된 응답·새 부팅 ID → STOP.
+원본 저장 재개/필터 warmup/새 window/시계 동기 확인 후만 재개.
+RAW 기록 큐 초과는 자동 샘플 폐기 금지; failure 기록.
+추론 큐는 오래된 window 폐기 가능, 단 반드시 로그 보존.
+
+[지연 및 시간 동기]
+PC 표기 시각과 Edge의 mono clock을 그대로 빼서 지연 주장 금지.
+NTP형 4-timestamp offset+uncertainty를 사용해 이벤트 나이 상한 계산.
+동기 오차/timeout/heartbeat 정량값은 단계 사전 설정값으로 고정.
+
+==========================================================================
+12. 3D 시각화 엔진과 과제→동작 매핑
+==========================================================================
+[렌더러 제안] Godot 4.x SceneTree, Node3D 객체, 기본 Mesh/손 에셋.
+[확정] 초기는 손 또는 다른 3D 객체가 실제 EEG 분류 결과로 움직임.
+
+[공통 인터페이스]
+SceneCommand(scene_id, object_id, action, magnitude, duration_ms,
+             source_intent_id, validation_status, render_policy_version).
+Action enum: STOP, ROTATE_CW, ROTATE_CCW, MOVE_LEFT, MOVE_RIGHT,
+             MOVE_UP, MOVE_DOWN. 유효 enum이 아니면 적용 금지.
+RenderEvent(render_id, source_intent_id, pc_applied_mono_ns,
+            frame_id, action, actual_object_transform, fps).
+
+[첫 실험 매핑 후보 — 과제 판별 후 활성화]
+FOCUS_TASK valid → ROTATE_CW (사전 제작 3D 객체 회전).
+실제 학습된 NEUTRAL/REST valid → STOP.
+VISUAL_TASK valid → 추가 회전/이동 후보; 판별 검증 전 적용 금지.
+LEFT_MI/RIGHT_MI valid → MOVE_LEFT/RIGHT (MI 유의미할 때만).
+REJECT/INVALID/timeout → STOP (REST 라벨 생성 금지).
+
+[추적·판정]
+- IntentEvent→RenderEvent가 1:1 또는 명시적 처리 정책으로 추적됨.
+- 렌더 FPS와 EEG 윈도우 갱신주기 별도로 보고.
+- 출력된 손/객체의 사실적 질감과 신경해독 정보량은 별개.
+- 다른 3D 객체로 바꿔도 EEG 수집/NPU 모델 코드가 영향받지 않아야 함.
+- 기본 무료/로컬 에셋 사용, 유료 자산 필수 의존성 금지.
+
+==========================================================================
+13. 정량 검증 T-01~T-10 — D01=A 잠정 승인 반영
+==========================================================================
+[승인 상태 규칙]
+아래는 v0.7 §12 숫자를 '잠정 승인된 초기 기준'으로 반영한 것이다.
+실험 전 프로토콜/표본수/임계값/수치형 오류 정책과 함께 동결해야 한다.
+특히 P8의 일부 성공값은 v0.7 후보에도 없으므로 미승인으로 남는다.
+
+T-01 P1 하드웨어
+  - 공식 NPU demo 반복 10회 실제 장치에서 모두 실행.
+  - EEG형 대표 12-feature 합성 모델 ONNX→DXNN→DX-M1 10회 유효 출력.
+  - NPU/PCIe/SDK 버전과 실제 하드웨어 추론 기록 확인.
+  - Bluetooth SPP 경로는 준비성 확인, 실제 헤드셋 수신은 P2.
+
+T-02 P2 수신
+  - 파서의 사전 고정 정상/비정상 벡터 100% 기대 결과 일치.
+  - 실제 MindWave EEG 연속 5분 수집 및 중단/재연결 사건 기록.
+  - 원본 재생시 파싱 결과 동일, 파일 sha256 일치.
+
+T-03 P3 파일럿 규모
+  - FOCUS/REST, VISUAL/REST 각각 2개 이상 독립 세션.
+  - 세션당 클래스별 최소 20 시행(안내된 조기 파일럿 제안).
+  - MI도 별도 2세션·각 클래스/세션 최소 20 시행을 목표로 함.
+  - 이 적은 세션은 전체 모집단 일반화를 보장하지 않음.
+
+T-04 P3 계속 연구할 근거(완성 근거 아님)
+  - 시행 단위 Balanced Accuracy >= 0.65.
+  - 시행/블록 구조 보존 순열 검정 p < 0.05.
+  - 각 세션의 점수 우연 수준 초과.
+  - 교란 조건에서의 성적 및 오명령을 반드시 보고.
+  - 이를 LEVEL-2 최종 성공과 동일시하지 않는다.
+
+T-05 P4 독립 개발 평가
+  - 새 검증 세션 Balanced Accuracy >= 0.70.
+  - coverage >= 0.70 (거부하지 않은 시행 비율).
+  - 95% CI, 클래스별 회상률, 혼동행렬, 교란조건 결과 제출.
+
+T-06 P5 양자화
+  - 동일 독립 validation에서 FP32 대비 성능 저하 ≤5%포인트.
+  - 실제 DX-M1 반복 추론 100회 오류 0.
+  - 실제 NPU 실행/출력 비교/SDK 버전/양자화 manifest 증거.
+
+T-07 P6 응답
+  - PC 과제 표시→PC 화면 렌더 적용 p95 ≤3초 후보.
+  - Edge NPU 자체 추론 p95 ≤100ms 후보.
+  - 두 값은 의도 시작 순간→화면 지연을 뜻하지 않음.
+
+T-08 P6 안전
+  - TCP 단절, 낡은 프레임, NPU 오류 각각 10회 주입.
+  - 잘못된 MOVE 0회; 초기 timeout 후보 1초.
+  - 장애 이후 필터·시간 동기·새 샘플 확보 전 자동 재개 금지.
+
+T-09 P7 화면
+  - 유효 명령 이벤트 100건의 mapping 불일치 0건.
+  - 렌더링 목표 30fps 후보(실제 장면/GPU의 시험 조건 명시).
+  - 실제 EEG→NPU→3D 연결 이벤트 해시·ID 계보 확보.
+
+T-10 P8 온라인
+  - 학습·모델 선택에 사용하지 않은 신규 독립 세션 필요.
+  - 20분 연속 운용을 초기 후보로 유지.
+  - 올바른 과제 명령률, REST/무의도 오명령/분, coverage,
+    지연 p50/p95, 교란 조건을 실측하여 제출.
+  - [미승인] 온라인 명령 정답률 통과 임계값.
+  - [미승인] REST/무의도 오명령률 통과 임계값.
+  - [미승인] P7·P8의 통계적 검출력을 만족시키는 최종 시행/세션 수.
+
+[공통 판정 규칙]
+- 기능 PASS와 정량 성능 PASS를 별도로 적는다.
+- 과제 선택/하이퍼파라미터 조정에 사용한 P3 자료를 최종 테스트로
+  재활용하지 않는다.
+- P7도 D02=B 때문에 T-04의 탐색 숫자만으로 자동 성공 판정 금지.
+  개발 이후 새로운 세션에서 명령 의도에 대한 독립 평가 필수.
+- 실제 의도와 상상 내용의 불일치 가능성, EEG 외 잡음 기여를 명시.
+- 승인·시험 전에 수치가 확정되지 않은 판정 항목은 HOLD,
+  재현된 실측값은 PASS 대용이 아닌 measured result로 보고.
+
+[추가 제안 — 사용자 미승인]
+V8-A 온라인 올바른 명령률: 전체 시행 기준 ≥0.70(잠정 후보).
+V8-B REST/무의도 MOVE 오명령률: ≤1회/분(잠정 후보).
+V8-C P7/P8 신규 평가 규모: 별도 날짜 최소 2세션, 평가 세션마다
+     클래스별 최소 30 시행(실험 검출력 검토 전 잠정 후보).
+V8-D 시계 동기 상한, cue-edge trial guard, 예측 유효기간,
+     신뢰도 거부 임계값은 실제 timing probe 뒤 단위·값 동결.
+주의: V8-A~D는 D01=A 승인 대상인 v0.7 후보에는 없던 구체화안이다.
+      이를 사용자가 승인하지 않은 상태에서 확정값으로 사용 금지.
+
+==========================================================================
+14. 단계별 실행 계획 P0~P8 / 승인 및 산출물
+==========================================================================
+[모든 단계 공통]
+각 단계 시작 전 범위/장비/변경/비용/테스트 프로토콜 사용자 승인.
+완료 보고: 실제 명령·입력·환경 버전, 측정 로그/해시,
+모듈별 PASS/HOLD/FAIL, 위험·실패, 잔여 비용·시간, 다음 게이트 질문.
+PASS라도 다음 단계 자동 실행 금지. 사용자가 중단하면 STOP.
+
+P0 설계 완료 심사 — 지금
+  목표: 확정 요구 전부, 아키텍처/프로토콜/검증·위험·게이트 완성.
+  자원: v0.5 PDF, v0.7 TXT, 최신 사용자 결정, 공식 SDK 자료.
+  방법: 문서 대조·모순/검증 범위 점검; 실제 코딩 없음.
+  의존: 없음.
+  위험: P7/P8 온라인 정량값 미승인, 시간 예산 충돌.
+  시험: R01~R20 구현/검증 매핑 누락 없음; BLOCK 처리 확인.
+  실패: 부족한 수치/승인 규정 보완 후 P0 재심.
+  예상: 문서 검토, 개발시간 0h.
+  산출: v0.8 심사본, 자체 점검표, 위험·BLOCK 목록.
+  사용자 승인: 미해결 항목 결정, P0 승인 여부. P1 착수는 별도.
+
+P1 NPU/BT 환경 조기 기술 프로브
+  목표: Orange Pi/DX-M1 실제 NPU 작동과 Linux BT 준비 확인.
+  자원: 실물 키트, 전원/저장장치, SDK, 호환 x86_64 Linux 빌드 호스트.
+  방법: HW inventory→OS/드라이버 버전→공식 demo 10회→합성 EEG형
+        모델 ONNX/INT8 컴파일→DX-M1 10회 추론→BT Classic 준비성.
+  선행: G0 설계 승인 + P1 착수 승인, 장비 사용권.
+  미검증: NPU 드라이버/펌웨어/연산/BT adapter.
+  성공: T-01 기능·실행·증거 충족. 실패: 버전·물리구성 원인 조사.
+  대체: SDK 호환 조합 제안; OS 재설치/구매는 별도 승인.
+  예상 작업: 4~8시간 [가설].
+  산출: hardware_inventory, sdk_manifest, npu_probe_report, bt_report.
+  사용자 확인: 실행 로그/호환성/추가 비용, G1/P2 진행 가능 여부.
+
+P2 MindWave Linux 수신/원본 보존
+  목표: 실제 Fp1 EEG를 Orange Pi가 받고 원본·파생데이터 분리.
+  자원: 실제 MindWave(별도 구매·수령), BT 어댑터, 원본 저장장치.
+  방법: SPP 연결→수신 bytes 기록→검사→samples 추출→segment 인덱스
+        →SHA256→replay→5분 실측.
+  선행: P1 승인, 구매 별도 승인, 수령, P2 착수 승인.
+  미검증: Linux 페어링, 데이터 연속성, 실제 품질, 기록 안정성.
+  성공: T-02 파서/실측/해시·재생 일치. 실패: 접촉·SPP·저장 원인 기록.
+  대체: 동글/BlueZ 점검; PC 중계는 구조 변경이므로 별도 승인.
+  예상 작업: 4~8시간 [가설], 배송 제외.
+  산출: raw_transport, raw_eeg, hash manifest, capture_report.
+  사용자 확인: 실제 신호와 무결성 증거, G2 승인.
+
+P3 Fp1 과제 및 MI 정보성 검증
+  목표: FOCUS/REST 우선, VISUAL/REST 비교, MI 별도 타당성 시험.
+  자원: P2 실제 데이터, 큐 제시 UI, 과제·통제 실험 프로토콜.
+  방법: 시행 무작위화/중앙 큐→눈/얼굴 CONTROL→2세션 이상→
+        그룹 분할→기준 분류기→T-03/T-04 및 통계·교란 분석.
+  선행: G2, P3 착수 승인, 과제별 사전 시험 기준 동결.
+  미검증: Fp1의 인지과제/운동상상 정보량, 안구교란, 시간정합.
+  성공: T-03/T-04 수준의 연구 지속 근거 및 교란 결과 기록.
+  실패: D3=A — 원인/재시험 계획 보고하고 P4 자동 보류.
+  예상 작업: 7~12시간 [가설].
+  산출: trial manifest, evidence metrics, MI status, control report.
+  사용자 확인: 어떤 과제가 모델 후보인지, G3 모델 연구 승인.
+
+P4 FP32 EEG 모델 학습
+  목표: P3에서 승인된 과제의 독립 검증 가능한 소형 모델.
+  자원: 실제 EEG 개발용 세션, PC/PyTorch/scikit-learn/ONNX.
+  방법: grouped split→CPU baseline→소형 MLP/CNN→검증→freeze
+        →ONNX parity, model card.
+  선행: G3 승인, 데이터 분할·성능 임계값 사전 동결.
+  미검증: 신호 일반화, 과적합, 큐 편향, 작은 표본.
+  성공: T-05 및 교란/재현 보고. 실패: 라벨·필터·모델 검토.
+  대체: 학습 기법 변경·데이터 추가 수집은 재시험 설계 승인.
+  예상 작업: 6~10시간 [가설].
+  산출: FP32, ONNX, training manifest, evaluation report.
+  사용자 확인: 독립 평가와 모델 선택 이유, G4 승인.
+
+P5 INT8 DX-M1 실제 배포
+  목표: 선택 모델을 DX-M1에서 실제 INT8 추론.
+  자원: P4 ONNX, DX-COM, 비이미지 calibration 데이터, DX-RT.
+  방법: op/shape probe→train-only calibration→DXNN 생성→배포
+        →실제 NPU 파티셔닝/출력 로그→FP32-INT8 parity.
+  선행: G4, P1 실행 환경, 양자화 기준 동결.
+  미검증: SDK/모델 호환성, 정확도 손실, 추론 지연.
+  성공: T-06, 실제 NPU 증거. 실패: 미지원 연산/양자화 원인 분석.
+  대체: 경량 모델 변경. CPU-only를 성공으로 보고 금지.
+  예상 작업: 5~9시간 [가설].
+  산출: .dxnn, SDK manifest, accuracy-loss report, NPU profile.
+  사용자 확인: 하드웨어 실행·정합성·정량 수치, G5 승인.
+
+P6 실시간 MindWave→DX-M1→PC
+  목표: 수집→NPU→PC의 안전하고 신선한 명령 전달.
+  자원: 실제 MindWave, P5 모델, Ethernet, TCP, PC receiver.
+  방법: segment filter→window→NPU infer→VALID/REJECT→TCP→
+        time sync/TTL check→PC 응답/오류 주입.
+  선행: G5, 지연·timeout·거부 정책 사전 동결.
+  미검증: Edge-PC 동기 오차, 큐 지연, 실제 무선 신호 안정성.
+  성공: T-07/T-08; p95·오류주입 로그 확인.
+  실패: 윈도우·큐·전송 병목 분석/재시험; 기준 변경은 승인.
+  예상 작업: 4~7시간 [가설].
+  산출: protocol conformance, timing log, recovery trace.
+  사용자 확인: 실시간 전달 증거 및 STOP 안전성, G6 승인.
+
+P7 2026년 12월 둘째 주 조기 시연
+  목표: 실제 사용자 의도 판별(LEVEL-2)을 INT8 DX-M1과 3D 동작에
+        연결. LEVEL-1만 성공하면 조기 목표 FAIL(통합 성취 별도 보고).
+  자원: P6 통합, PC Godot 3D 객체, 신규 독립 평가 세션.
+  방법: 움직임 매핑/100 이벤트 시험→FPS 계측→신규 사용자 EEG
+        온라인 제어→교란 통제→실제 RenderEvent 검증.
+  선행: G6, 의도 판별 평가 기준·표본 수·온라인 오명령 기준 동결.
+  미검증: 미리 설정한 과제 독립 분류, 실제 지연, 그림/3D 성능.
+  성공: 실제 EEG + 실제 NPU + 사전 기준을 충족하는 독립 의도 판별
+        + 실제 3D 변화 + T-09. 독립 의도 판별 실패시 목표 FAIL.
+  실패: 결과를 LEVEL-1이나 기능 검증으로 분리하고 보완안 사용자 승인.
+  예상 작업: 4~7시간 [가설], 독립 데이터 수집 증가 시 초과 가능.
+  산출: demo recordings, raw/prediction/render lineage, P7 gate report.
+  사용자 확인: 독립 의도 증거/교란/3D 인과 연결, G7 승인.
+
+P8 2027-01-31 최종 독립 평가
+  목표: 신규 날짜 EEG에서 LEVEL-2 의도 판별·NPU·렌더·안정성 종합.
+  자원: 동결 모델, 신규 사용자 데이터, P7 이후 보완 내용, 계측기.
+  방법: new-session blind evaluation→trial/online score→control
+        →NPU/CPU parity→20min 운용→오류주입→최종 판정.
+  선행: G7, T-10의 미정 온라인 합격값/최종 시험 규모 사전 승인.
+  미검증: 세션 간 일반화, 교란 기원, 장기 안정성/실제 전력.
+  성공: 승인된 P8 독립 온라인 평가와 필수 요구사항 모두 만족.
+  실패: 미달 기능 구분, 새 시험 정책과 사용자 승인 후 재시험.
+  예상 작업: 7~11시간 [가설].
+  산출: independent final report, new EEG evidence, NPU/3D trace.
+  사용자 확인: 완료/보완/실패 판정, G8 승인.
+
+==========================================================================
+15. 예산·일정 및 단계별 실행 가능성 심사
+==========================================================================
+[확정 / 예산]
+- 기존 총 300,000원 제한은 폐기.
+- BCI MindWave Mobile 2 구입 비용은 별도 재원.
+- Bluetooth 동글·전원·저장장치·케이블·배터리·기타 신규 지출
+  총합은 추가 100,000원 이내.
+- 노트북/집 PC/기존 NPU 키트는 기존 보유/사용 가능 자원.
+- 미사용 학원 자원/Azure는 비용이나 권한 확인 전 필수 경로에 넣지 않음.
+- 사용자 명시 승인 없이 구매·결제·유료 클라우드/OS 교체 금지.
+- MindWave 실거래가/배송비, BT 동글/저장장치 비용 = UNKNOWN.
+
+[확정 / 일정]
+- 2026-12-07~13 : 조기 시연 희망 목표, D02=B LEVEL-2 필수.
+- 2027-01-31 : 원래 프로토타입 목표일, D02=B LEVEL-2 필수.
+- 주당 사용 가능한 작업시간 ≤5h.
+
+[공수 추정 / 실측 아님]
+P1 4~8h, P2 4~8h, P3 7~12h, P4 6~10h,
+P5 5~9h, P6 4~7h, P7 4~7h, P8 7~11h.
+P1~P7: 약 34~61h; P1~P8: 약 41~72h.
+2026-11-11→2026-12-13: 약 32일 = 작업 가능 최대 약 23h.
+2026-11-11→2027-01-31: 약 81일 = 작업 가능 최대 약 58h.
+배송/장애 해결/사용자 승인 대기/실험 피로도/재시험 제외.
+
+[객관적 일정 판단]
+- 현재 공수 추정의 최소치(조기 34h)가 가용시간 상한(약 23h)보다
+  크다. 따라서 '모든 단계 순차 종료 + 각 단계 승인'을 12월 13일에
+  완료할 수 있다고 주장하는 것은 현재 계획 수치와 모순된다.
+- 이는 12월 목표의 사용자의 희망을 삭제할 근거는 아니지만,
+  **현재 계획하에서 조기 목표의 일정 적합성은 FAIL/재설계 필요**이다.
+- 1월 목표는 최소 공수 41h < 가용 상한 약 58h지만,
+  지연·결함·재시험을 고려하면 불확실성이 높다.
+- 계획 공수는 검증된 실측이 아니므로 '절대 불가능' 판정도 불가.
+- 대안(사용자 미승인): 승인한 범위 내 사전 준비를 별도 단계로 조정,
+  병렬 작업 허용 범위 명문화, 시각화 구현 조기 수행 등. 다만
+  다음 단계 자동 구현 또는 독립 평가 축소는 사용자 승인 없이 금지.
+
+==========================================================================
+16. 위험 등록부 및 대체 설계(미승인 자동 전환 금지)
+==========================================================================
+위험ID / 원인 / 영향 / 수준 / 판정 실험 / 실패 시 경로
+RISK-01 Fp1 단일 채널 운동상상 정보 부족 / MI 미달 / 치명적 /
+         P3 MI 독립 시험 / 원인 분석·재시험안 승인(D3=A).
+RISK-02 눈·얼굴 잡음/지시 단서 / 거짓 의도 분류 / 치명적 /
+         P3/P7/P8 CONTROL / 다른 과제·센서 변경은 별도 승인.
+RISK-03 Linux SPP 비호환/동글 부재 / EEG 수집 차단 / 높음 /
+         P1 BT 준비/P2 실측 / BlueZ·어댑터 재시험.
+RISK-04 SDK/PCIe/펌웨어 충돌 / NPU 미실행 / 높음 /
+         P1 공식 실행 / SDK 호환 조합 재검토.
+RISK-05 ONNX 연산/양자화 미지원 / 필수 INT8 실패 / 높음 /
+         P1/P5 컴파일 / 소형 호환 모델 제안.
+RISK-06 원본 쓰기 장애/누락 / 데이터 신뢰성 훼손 / 높음 /
+         P2 저장/복구 시험 / 추론 정지, 저장 재설계 승인.
+RISK-07 시계 오차·큐 정체 / 잘못된 최신성·라벨 / 높음 /
+         P6 동기/timeout / 예측 폐기+STOP.
+RISK-08 과적합·독립평가 부족 / 성능 과대평가 / 높음 /
+         P3/P4/P7/P8 독립 세션 / 새 데이터 추가 수집.
+RISK-09 12월 마감 vs 주5h / 계획 공수 초과 / 치명적(일정) /
+         P0 일정 심사/P1 실측시간 / 목표 유지·재계획 승인.
+RISK-10 추가 10만원 부품 부족 / 초기 장비 구성 차단 / 높음 /
+         P1 실물·견적 / 사용 허락 있는 기존 부품 활용 여부 재검토.
+RISK-11 PC GPU/렌더 부하 / 3D FPS 미달 / 중간 /
+         P7 프레임 측정 / 에셋 경량화 대안 승인.
+RISK-12 상상 내용 복원과 상태별 3D 매핑 혼동 / 과장된 성과 / 높음 /
+         P7/P8 독립 보고 / LEVEL-2와 LEVEL-3 구분.
+RISK-13 온라인 성공/오명령 합격값 미정 / 최종 PASS 판단 불가 / 높음 /
+         P0 기준 확정 / 기준 사전 승인 전 P7/P8 판정 중단.
+
+==========================================================================
+17. 실패주입·복구·판정 매트릭스
+==========================================================================
+TEST-ID  시험                         예상 행동                    증거
+F01      Bluetooth 연결 강제 해제       INVALID+STOP, 새 segment    link log
+F02      RAW chunk 손상/길이 오류       패킷 거부, 원본 기록         parser trace
+F03      원본 저장 공간 부족            기록 장애+STOP             storage log
+F04      필터에 결손 segment 투입       window 거부                window log
+F05      DX-M1 loader 실패             INVALID+STOP              dxrt log
+F06      NPU core 실행 오류            INVALID+STOP              device trace
+F07      TCP 완전 단절                  화면 STOP                  pc render log
+F08      TCP 프레임 중복/역전            적용 0회                  event log
+F09      매우 오래된 INTENT            적용 0회                  timeout log
+F10      세션/boot_id/manifest 불일치    스키마 오류/거부            event log
+F11      PC/Edge 시계 동기 실패         신규 MOVE 금지             sync log
+F12      점수 NaN/Inf                   예측 INVALID/REJECT         validator log
+F13      REJECT/INVALID가 REST로 표시   시험 실패(상태 혼동)        data audit
+F14      개발 자료와 최종 시험 중복       평가 실패·데이터 제외       split manifest
+F15      실제 눈/안면 CONTROL에서 MOVE   교란 위험 기록, 목표 재평가 control report
+F16      .dxnn CPU-only/fallback        NPU 요구 FAIL              device profile
+F17      P7 LEVEL1만 달성               목표 FAIL, 부분성취 기록    gate report
+F18      P8 의도 분류 검증 미달           최종 목표 FAIL            final report
+
+==========================================================================
+18. 설계 완료 8조건 자체 심사 (2026-11-11)
+==========================================================================
+조건 1 — [충족] 확정 R01~R20 구현·검증 책임을 명시.
+조건 2 — [설계상 충족] 하드웨어 물리 경로와 실행 위치, 연결 방식,
+          전용 빌드 경로, BT/PCIe/Ethernet 역할 분리.
+조건 3 — [설계상 충족] ThinkGear 파서, 불변 저장, 인과 전처리,
+          non-image 양자화, INT8 NPU, TCP, 3D, 장애 규칙 기술.
+          단, 정확한 SDK API·BT 동글·키트 구성은 P1 실기 검증 대상.
+조건 4 — [부분 충족] P0~P8의 목표·선행·구현·산출·기준·시간 정의.
+          P7/P8 독립 온라인 PASS 임계값 및 시험 규모 미동결.
+조건 5 — [부분 충족] 고위험 항목 검증 경로·실패 대응 준비 완료.
+          과학적으로 충분한 독립 데이터 규모/검출력은 아직 미확정.
+조건 6 — [충족] R01/R20과 기존 장비·예산 유지, 구조·시간 충돌 보고.
+조건 7 — [부분 충족] 예산 제한과 보유 장비 반영, 실제 견적 미확인;
+          12월 가용시간 23h < 최소 계획 34h, 일정 적합성 부족.
+조건 8 — [부분 충족] 각 단계 게이트의 증거/승인 주체 기술.
+          사용자가 P7/P8 PASS를 결정할 정량 자료 일부 미결.
+
+결과: 8/8 자체 점검 수행. '완료 선언'은 미충족.
+실제 장비·모델·EEG 시험은 0건(설계 검토만 수행).
+
+==========================================================================
+19. BLOCK 목록, 해소 조건 및 남은 사용자 결정
+==========================================================================
+BLOCK-01: D01=A는 v0.7 후보를 잠정 승인했지만 T-10 온라인 성적의
+          필수 통과값(정답률/무의도 오명령률/충분한 독립 세션 수)이
+          당시 문서에서 TBD였다. 조기·최종 LEVEL-2 성공 조건을
+          객관적으로 고정하려면 이를 시험 전에 수치로 승인해야 함.
+          제13절 V8-A/V8-B/V8-C는 미승인 제안치.
+
+BLOCK-02: D02=B로 12월에도 독립 의도 판별이 필수인데,
+          12월 둘째 주까지의 가용시간 상한 약 23h와 P1~P7 최소
+          공수 추정 약 34h 사이에 11h 이상의 계획상 간극 존재.
+          해결은 사용자의 목표를 자동 완화하는 것이 아니라,
+          검증 범위를 유지한 상태의 일정 재편/작업 자원 승인 또는
+          목표 미달 위험 명시적 수용에 관한 설계 결정을 하는 것.
+          예상 공수는 추정이고 실측 전 실제 달성 가능성은 UNKNOWN.
+
+BLOCK-03: 실제 구현시 필요한 세부 시험 파라미터 중
+          time-sync uncertainty, event TTL, cue guard interval,
+          수집 내구성/fsync 정책은 수치·조건이 미동결.
+          범위와 측정 방법은 작성했으나 P2/P6/P7 착수 전 동결 필요.
+          이 항목을 단계 내 기술 파라미터 승인으로 위임할 것인지,
+          P0 전체 심사에서 고정할 것인지 절차 결정 필요.
+
+[BLOCK이 아닌 기술적 OPEN / 시험으로 닫을 항목]
+OPEN-01 MindWave 실제 Linux Bluetooth SPP 호환(P2).
+OPEN-02 Orange Pi DX-M1 드라이버·SDK·펌웨어·전원(P1).
+OPEN-03 EEG 최소 모델 실제 DX-COM INT8 컴파일/추론(P1/P5).
+OPEN-04 Fp1의 집중·시각상상·MI 정보성·잡음 기여(P3/P7/P8).
+OPEN-05 Godot와 PC GPU/렌더 안정성(P7).
+OPEN-06 추가부품 실제 비용, BCI 구매가/배송, 저장장치(P1/P2).
+OPEN-07 전력 계측 장비/실효 NPU 효율(P5/P8).
+
+[승인 대상 — 각 항목 직접 작성 가능]
+DECISION-A: T-10 온라인 정답률·오명령 허용치·신규 평가 규모
+  A. V8-A~C의 후보값을 잠정 승인(시험 전 세부 프로토콜 동결).
+  B. 과제별 별도 기준안을 먼저 작성하도록 보류.
+  C. 직접 작성: ____________________________________________
+
+DECISION-B: 조기 시연 일정과 단계 승인 운영
+  A. 12월 목표·주5h·모든 단계 별도 승인 그대로 유지하되,
+     현재 계획의 일정상 불충분/미달 가능성을 수용하고 추정 재계산.
+  B. 승인 범위 안에서 단계 순서를 최적화한 별도 일정안을 제출받아
+     결정(성공요건 LEVEL-2는 변경하지 않음).
+  C. 직접 작성: ____________________________________________
+
+DECISION-C: 타이밍/원본 내구성 등의 세부 파라미터 승인 권한
+  A. P0에서 파라미터 측정 절차를 승인하고, 수치는 해당 단계 착수 전
+     사용자에게 별도 보고·승인받는다.
+  B. P0에서 모든 수치를 먼저 고정한 뒤 P1 착수 가능하도록 한다.
+  C. 직접 작성: ____________________________________________
+
+[사용자의 최종 설계 승인과 P1 착수 승인]
+- 위 BLOCK 해결 후 P0 '설계 완료 여부'를 사용자가 별도로 판정.
+- P0 승인받아도 P1 구현은 자동 시작하지 않음.
+- 장비 구매/설치·소프트웨어 구현/실행은 승인 전 미착수.
+
+==========================================================================
+20. 근거·출처·검증 범위
+==========================================================================
+[사용자 자료]
+- 프로젝트 NBE 설계도 v0.5.pdf (20쪽; 2026-11-10 2회 검토본).
+- NeuroBridge_Edge_v0.7_P0_상세설계_검토본.txt (834줄).
+- 사용자의 최신 결정 D01=A, D02=B, 그리고 D1~D5/Q1·Q2.
+
+[제조사/원자료]
+S01 NeuroSky MindWave 제품: https://store.neurosky.com/pages/mindwave
+S02 NeuroSky ThinkGear 통신 프로토콜:
+    https://developer.neurosky.com/docs/doku.php?id=thinkgear_communications_protocol
+S03 DEEPX DX-COM Change Log (v2.5.0, dxnn v9/RT 3.5+):
+    https://developer.deepx.ai/tech-docs/DXNN-SDK/DX-COM/Appendix_Change_Log/
+S04 DEEPX DX-AllSuite v2.5.0 release notes:
+    https://developer.deepx.ai/tech-docs/ko/next/DX-AllSuite/Release_Notes/
+S05 DEEPX DXNN SDK version compatibility matrix:
+    https://developer.deepx.ai/tech-docs/2.4.0/DX-AllSuite/Version_Compatibility/
+S06 DEEPX Orange Pi 5 Plus 가이드:
+    https://developer.deepx.ai/tech-docs/2.3.3/DXNN-SDK/DX-STREAM/Appendix_Build_on_OrangePi5Plus/
+S07 PhysioNet MI EEG 공개 데이터(참고용; 실사용 MindWave 근거 아님):
+    https://physionet.org/content/eegmmidb/1.0.0/
+S08 Orange Pi 5 Plus 공식 매뉴얼(어댑터·전원 확인용):
+    https://orangepi.net/wp-content/uploads/2023/07/OrangePi_5_Plus_RK3588_user-manual_v1.5.1.pdf
+
+본 문서에 제조사 링크가 있다는 이유만으로 사용자 실물의 호환성이
+검증된 것은 아니다. 코드 작성, 저장소 변경, 실제 NPU 실행, EEG 측정,
+모델 학습, 구매, 과금, 렌더링 시연을 수행하지 않았다.
+
+==========================================================================
+END — v0.8 / DESIGN REVIEW / BLOCKED
+==========================================================================
