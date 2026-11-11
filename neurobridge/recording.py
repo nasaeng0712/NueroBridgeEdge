@@ -21,7 +21,10 @@ def file_hash(path):
 
 
 class Capture:
-    def __init__(self, root, on_failure=None):
+    def __init__(self, root, on_failure=None, source="SYNTHETIC"):
+        if source not in {"SYNTHETIC", "MEASURED", "PUBLIC_REPLAY"}:
+            raise ValueError("원본 출처가 잘못되었습니다.")
+        self.source = source
         self.on_failure = on_failure
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=False)
@@ -102,9 +105,9 @@ class Capture:
             digest = file_hash(partial)
             entries[name] = {"sha256": digest, "size": partial.stat().st_size}
             partial.rename(self.root / name)
-        manifest = {"session_id": self.session_id, "source": "SYNTHETIC",
+        manifest = {"session_id": self.session_id, "source": self.source,
                     "close_state": "closed", "files": entries}
-        # 이 구현은 합성 시험 전용이다. 실측 수집기를 연결하기 전 출처 계약을 확장한다.
+        # 출처 표시는 수집 경로의 선언이며, 실기 성공 증거를 자동 생성하지 않는다.
         with (self.root / "manifest.json").open("x", encoding="utf-8") as file:
             json.dump(manifest, file, ensure_ascii=False, indent=2)
             file.flush()
