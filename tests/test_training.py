@@ -41,3 +41,14 @@ class EvaluationTests(unittest.TestCase):
             dataset = json.loads((root / "synthetic_dataset.json").read_text())
             training_ids = {r["trial_id"] for r in dataset["training"]}
             self.assertEqual(set(report["calibration_trial_ids"]), training_ids)
+            from neurobridge.simulation import run as simulate
+            integrated = simulate(Path(tmp) / "integrated", model_root=root)
+            self.assertEqual(integrated["source"], "SYNTHETIC_CPU_MODEL_REPLAY")
+            self.assertEqual(integrated["model_id"], report["model_id"])
+            self.assertEqual(integrated["command_count"], 100)
+            self.assertIsNotNone(integrated["inference_p95_ms"])
+            from neurobridge.backend import SyntheticOnnxBackend
+            with (root / "model.onnx").open("ab") as file:
+                file.write(b"tampered")
+            with self.assertRaises(ValueError):
+                SyntheticOnnxBackend(root)

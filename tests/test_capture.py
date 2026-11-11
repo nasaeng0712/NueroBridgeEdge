@@ -91,3 +91,16 @@ class CaptureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(FileExistsError):
                 Capture(tmp)
+
+    def test_storage_failure_stops_receiver(self):
+        from test_safety import ready, intent
+        receiver = ready()
+        self.assertEqual(receiver.receive(intent(), 220), "ROTATE_CW")
+        with tempfile.TemporaryDirectory() as tmp:
+            capture = Capture(Path(tmp) / "session", on_failure=receiver.stop)
+            with patch.object(capture, "_write", side_effect=OSError("디스크 부족")):
+                with self.assertRaises(OSError):
+                    capture.ingest(encode_raw(1))
+            self.assertEqual(receiver.action, "STOP")
+            self.assertFalse(receiver.armed)
+            capture.close()

@@ -18,7 +18,11 @@ from .thinkgear import encode_raw
 from .windowing import WindowBuilder
 
 
-def run(root):
+def run(root, model_root=None):
+    backend = None
+    if model_root is not None:
+        from .backend import SyntheticOnnxBackend
+        backend = SyntheticOnnxBackend(model_root)
     root = Path(root)
     root.mkdir(parents=True, exist_ok=False)
     started = time.perf_counter_ns()
@@ -40,19 +44,23 @@ def run(root):
     raw = np.fromfile(capture.root / "eeg.i16le", dtype="<i2")
     filtered = filt.process(raw, capture.segment_id)
     manifest, preprocess_hash = preprocessing_manifest(filt)
+    vectors = []
     with (root / "features.jsonl").open("x", encoding="utf-8") as file:
         for number, window in enumerate(feature_rows):
+            vectors.append(features(filtered[window.sample_start:window.sample_stop]))
             file.write(json.dumps({"window_id": f"window-{number}", "segment_id": window.segment_id,
                                   "input_sample_range": [window.sample_start, window.sample_stop],
                                   "source": "SYNTHETIC", "preprocess_sha256": preprocess_hash,
-                                  "features": features(filtered[window.sample_start:window.sample_stop]).tolist()}) + "\n")
+                                  "features": vectors[-1].tolist()}) + "\n")
     identity = {"session_id": capture.session_id, "boot_id": capture.boot_id,
                 "sync_epoch": str(uuid.uuid4()), "connection_epoch": str(uuid.uuid4())}
     policy = Policy()
-    receiver = SafetyReceiver(identity, "SCRIPTED_NOT_A_MODEL", "0" * 64, policy)
+    model_id = backend.manifest["model_id"] if backend else "SCRIPTED_NOT_A_MODEL"
+    model_sha = backend.manifest["onnx_sha256"] if backend else "0" * 64
+    receiver = SafetyReceiver(identity, model_id, model_sha, policy)
     receiver.prepare(Sync(0, 0), time.monotonic_ns(), recording_ok=not capture.failed,
                      model_ok=True, fresh_samples=True)
-    timings, commands = [], []
+    timings, commands, predictions, intents, inference_timings = [], [], [], [], []
     # 사전 정의된 명령은 특징·EEG에서 추론한 결과가 아니다.
     actions = ["ROTATE_CW", "STOP", "ROTATE_CCW", "MOVE_LEFT", "MOVE_RIGHT", "MOVE_UP", "MOVE_DOWN"]
     with socket.socket() as server:
@@ -67,15 +75,27 @@ def run(root):
                 for number in range(100):
                     source_ns = time.monotonic_ns()
                     window = feature_rows[number % len(feature_rows)]
+                    action, score, class_name = actions[number % len(actions)], 1.0, None
+                    if backend:
+                        infer_started = time.perf_counter_ns()
+                        class_name, score = backend.infer(vectors[number % len(vectors)])
+                        inference_timings.append(time.perf_counter_ns() - infer_started)
+                        action = {"SIM_THETA_6HZ": "MOVE_LEFT", "SIM_ALPHA_10HZ": "ROTATE_CW",
+                                  "SIM_BETA_24HZ": "MOVE_RIGHT"}[class_name]
                     intent = dict(identity, schema_version="1.0", type="INTENT",
                                   stream_id=capture.stream_id, segment_id=capture.segment_id,
                                   trial_id="synthetic-trial", window_id=f"window-{number % len(feature_rows)}",
                                   prediction_id=f"scripted-{number}", intent_id=f"intent-{number}",
-                                  model_id="SCRIPTED_NOT_A_MODEL", model_sha256="0" * 64,
+                                  model_id=model_id, model_sha256=model_sha,
                                   input_sample_range=[window.sample_start, window.sample_stop],
-                                  decision_status="VALID", action=actions[number % len(actions)], score=1.0,
+                                  decision_status="VALID", action=action, score=score,
                                   source_window_end_edge_ns=source_ns, edge_created_mono_ns=time.monotonic_ns(),
                                   error_code=None, command_generation_policy_version="synthetic-v1")
+                    intents.append(intent)
+                    predictions.append({"prediction_id": intent["prediction_id"], "window_id": intent["window_id"],
+                                        "input_sample_range": intent["input_sample_range"], "class": class_name,
+                                        "score": score, "backend": "CPU_ONNX_SYNTHETIC" if backend else "SCRIPTED",
+                                        "source": "SYNTHETIC_REPLAY", "npu_status": "NOT TESTED"})
                     sender.sendall(encode(intent))
                     messages = []
                     while not messages:
@@ -95,9 +115,16 @@ def run(root):
     with (root / "scene_commands.jsonl").open("x", encoding="utf-8") as file:
         for command in commands:
             file.write(json.dumps(command) + "\n")
-    manifest.update({"source": "SYNTHETIC_SCRIPTED", "policy": asdict(policy),
+    for name, rows in (("predictions.jsonl", predictions), ("intents.jsonl", intents)):
+        with (root / name).open("x", encoding="utf-8") as file:
+            for row in rows:
+                file.write(json.dumps(row, ensure_ascii=False) + "\n")
+    manifest.update({"source": "SYNTHETIC_CPU_MODEL_REPLAY" if backend else "SYNTHETIC_SCRIPTED", "policy": asdict(policy),
                      "preprocess_sha256": preprocess_hash, "sample_count": parsed,
                      "window_count": len(feature_rows), "command_count": len(commands),
+                     "inference_p95_ms": float(np.percentile(inference_timings, 95) / 1e6) if inference_timings else None,
+                     "model_id": model_id, "model_sha256": model_sha,
+                     "clock_semantics": "source_window_end_edge_ns는 합성 재생 송출 시각이며 원본 수집 시각이 아님",
                      "tcp_p50_ms": float(np.percentile(timings, 50) / 1e6),
                      "tcp_p95_ms": float(np.percentile(timings, 95) / 1e6),
                      "total_wall_ms": (time.perf_counter_ns() - started) / 1e6,
@@ -111,12 +138,13 @@ def run(root):
 def main():
     parser = argparse.ArgumentParser(description="합성 신호·사전 정의 명령 통합 검사")
     parser.add_argument("--output", type=Path, required=True, help="존재하지 않는 새 출력 폴더")
+    parser.add_argument("--model", type=Path, help="합성 모델 폴더: 실제 EEG·NPU 대체용이 아님")
     args = parser.parse_args()
     try:
-        result = run(args.output)
+        result = run(args.output, args.model)
     except (OSError, ValueError, RuntimeError) as error:
         parser.exit(1, f"합성 통합 시험 실패: {error}\n")
-    print(f"합성 통합 PASS: {result['sample_count']}샘플, {result['window_count']}윈도우, {result['command_count']}사전 정의 명령")
+    print(f"합성 통합 PASS: {result['sample_count']}샘플, {result['window_count']}윈도우, {result['command_count']}합성 명령")
     print(f"TCP 수신 p95: {result['tcp_p95_ms']:.3f}ms (추론·렌더 지연 아님)")
     print("실제 EEG 분류와 NPU 실행은 검증하지 않았습니다.")
 
