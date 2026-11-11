@@ -52,3 +52,30 @@ godot --path renderer -- --commands /절대경로/reports/demo-001/scene_command
 창 없는 자동 검사에는 `--headless`를 Godot 옵션에 추가하고 마지막에 `--test`를 붙입니다. `--object sphere`로 표시 객체를 바꿀 수 있습니다. 제한된 클라우드에서는 `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_CONFIG_HOME`을 쓰기 가능한 `reports/` 하위 절대 경로로 지정하세요.
 
 현재 통합 경로는 **합성 정현파 + 사전 정의 명령**입니다. 특징으로 명령을 판별하지 않으며, 실시간 EEG 해독·NPU·독립 의도 판별을 시연하지 않습니다. Godot은 검증된 합성 명령 파일을 재생합니다. 헤드리스 검사는 실제 화면 출력·30fps 성능 검증과 구분합니다.
+
+## 합성 모델 학습과 실시간 장면 연결
+
+모델 경로는 ONNX/ONNX Runtime 추가 설치가 필요합니다.
+
+```sh
+.venv/bin/python -m pip install -r requirements-model.txt
+.venv/bin/python -m neurobridge.training --output reports/model-001
+.venv/bin/python -m neurobridge.simulation --model reports/model-001 --output reports/model-demo-001
+.venv/bin/python -m neurobridge.live_demo --commands reports/model-demo-001/scene_commands.jsonl --output reports/live-001
+```
+
+마지막 명령은 Godot 창을 열고 PC 내부 TCP로 명령을 전송하며, 연결 종료 후 STOP 기록을 확인합니다. 창 없는 검증은 마지막에 `--headless`를 붙입니다. Linux 클라우드 의존성 재설치는 `bash tools/install.sh`로 할 수 있습니다.
+
+모델은 6/10/24Hz **합성 주파수 클래스**를 학습합니다. 집중·시각상상·좌우 운동상상을 해독하는 모델이 아니며, 이 CPU 경로는 실제 DX-M1 필수 요구를 대체하지 않습니다. 합성 재생 타임스탬프는 원본 수집 시각과 구분합니다.
+
+## 실제 장비 확보 후
+
+[실기 검증 재개 절차](docs/실기검증_재개.md)에 따라 P1부터 수행합니다. 실제 Orange Pi에서 이미 페어링된 헤드셋의 RFCOMM 채널을 확인한 뒤 아래 수집 진입점을 사용할 수 있습니다. 현재 실기 수신은 **미검증**입니다.
+
+```sh
+python3 -m neurobridge.capture --address AA:BB:CC:DD:EE:FF --channel 1 --output reports/measured-001 --duration 300
+```
+
+예시 주소를 실제 장치 주소로 교체하세요. BlueZ 자동 페어링과 SDK/NPU 실행은 아직 구현되지 않았습니다. 원본 기록 파일과 모델 산출물은 `reports/`에 두고 GitHub에 업로드하지 마세요.
+
+[전체 구현 현황](docs/status/전체현황.md)에서 최신 기능별 커밋, 합성 검증과 실기 보류 항목을 확인할 수 있습니다.
