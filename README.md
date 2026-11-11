@@ -28,3 +28,27 @@ python -m neurobridge
 현재 명령은 합성 데이터 전용이며 실제 Bluetooth 수신, 신호 분류, NPU 추론이나 시각화가 아닙니다. 저장 실패 후 추가 데이터 처리는 차단됩니다. 실시간 명령 경로와의 STOP 연동은 아직 구현되지 않았습니다.
 
 기준 설계도 원본은 [v0.8 문서](docs/design/NeuroBridge_Edge_v0.8.txt)에 보존했습니다. 문서의 과거 승인 상태와 현재 대화에서 주신 개발 지시는 구분합니다. 미승인 성능값은 자동 확정하지 않습니다.
+
+## CPU 합성 통합 실행
+
+Python 3.11 이상에서 과학 계산 의존성을 설치합니다. GPU는 필요하지 않습니다.
+
+```sh
+python -m venv .venv
+# Linux/macOS
+.venv/bin/python -m pip install -r requirements-science.txt
+.venv/bin/python -m neurobridge.simulation --output reports/demo-001
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+Windows에서는 `.venv/bin/python`을 `.venv\Scripts\python.exe`로 바꾸세요. 출력 폴더는 매 실행 새 이름을 사용합니다.
+
+Godot 4.x 설치 후 다음 명령으로 3D 객체를 표시합니다. 명령·보고서 경로는 실제 절대 경로로 바꾸세요.
+
+```sh
+godot --path renderer -- --commands /절대경로/reports/demo-001/scene_commands.jsonl --report /절대경로/reports/demo-001/render.jsonl
+```
+
+창 없는 자동 검사에는 `--headless`를 Godot 옵션에 추가하고 마지막에 `--test`를 붙입니다. `--object sphere`로 표시 객체를 바꿀 수 있습니다. 제한된 클라우드에서는 `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_CONFIG_HOME`을 쓰기 가능한 `reports/` 하위 절대 경로로 지정하세요.
+
+현재 통합 경로는 **합성 정현파 + 사전 정의 명령**입니다. 특징으로 명령을 판별하지 않으며, 실시간 EEG 해독·NPU·독립 의도 판별을 시연하지 않습니다. Godot은 검증된 합성 명령 파일을 재생합니다. 헤드리스 검사는 실제 화면 출력·30fps 성능 검증과 구분합니다.

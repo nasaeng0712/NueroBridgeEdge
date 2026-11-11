@@ -14,6 +14,7 @@ FEATURE_ORDER = ("theta_logpower", "alpha_logpower", "low_beta_logpower", "high_
 class CausalFilter:
     def __init__(self, sample_rate=512, low_hz=1, high_hz=40, order=4):
         # 이 기본값은 합성 개발용이며 사용자 EEG의 최종 필터로 동결한 값이 아니다.
+        self.sample_rate = sample_rate
         self.sos = butter(order, [low_hz, high_hz], btype="bandpass", fs=sample_rate, output="sos")
         self.segment_id = None
         self.state = np.zeros((len(self.sos), 2))
@@ -34,7 +35,7 @@ class CausalFilter:
         return result
 
     def manifest(self):
-        return {"kind": "causal_sos", "sos": self.sos.tolist(), "initial_state": "zeros",
+        return {"sample_rate": self.sample_rate, "kind": "causal_sos", "sos": self.sos.tolist(), "initial_state": "zeros",
                 "segment_reset": True, "status": "SYNTHETIC_DEVELOPMENT"}
 
 
@@ -68,7 +69,7 @@ def features(samples, sample_rate=512, epsilon=1e-12):
 def preprocessing_manifest(causal_filter):
     manifest = {"filter": causal_filter.manifest(), "feature_order": FEATURE_ORDER,
                 "bands_hz_half_open": [[4, 8], [8, 13], [13, 20], [20, 30], [4, 40]],
-                "epsilon": 1e-12, "sample_rate": 512,
+                "epsilon": 1e-12, "sample_rate": causal_filter.sample_rate,
                 "spectrum": "demean_rectangular_onesided_power_per_bin",
                 "line_length": "mean_absolute_first_difference", "std": "population",
                 "entropy": "normalized_natural_log_full_one_sided_spectrum",
